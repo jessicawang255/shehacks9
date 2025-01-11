@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import '../pdfWorker'; // Import the custom worker setup
 
 const SyllabusUploader = ({ onFileParse }) => {
   const [fileName, setFileName] = useState('');

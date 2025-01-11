@@ -1,89 +1,85 @@
 import React, { useState } from 'react';
-import './App.css';
-import SyllabusUploader from './components/SyllabusUploader';
 
 function App() {
-  const [syllabusText, setSyllabusText] = useState('');
-  const [weeklyOutline, setWeeklyOutline] = useState([]);
-  const [toDoList, setToDoList] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [analysis, setAnalysis] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleFileParse = (text) => {
-    setSyllabusText(text);
-    const { weeklyOutline, toDoList } = parseSyllabusText(text);
-    setWeeklyOutline(weeklyOutline);
-    setToDoList(toDoList);
+  // Handle file selection
+  const handleFileChange = (event) => {
+    setSelectedFile(event.target.files[0]);
+    setAnalysis("");
+    setError("");
   };
 
-  const parseSyllabusText = (text) => {
-    const weekPattern = /Week\s+\d+:\s+.*?(?=\nWeek|\Z)/gs;
-    const weeks = text.match(weekPattern) || [];
+  // Send the file to Flask endpoint for analysis
+  const handleAnalyze = async () => {
+    if (!selectedFile) {
+      setError("Please select a file first!");
+      return;
+    }
 
-    const weeklyOutline = [];
-    const toDoList = [];
+    setLoading(true);
+    setError("");
+    setAnalysis("");
 
-    weeks.forEach((week) => {
-      const weekInfo = {};
-      const lines = week.split('\n').map((line) => line.trim()).filter(Boolean);
+    try {
+      // Build form data
+      const formData = new FormData();
+      formData.append("file", selectedFile);
 
-      if (lines.length > 0) {
-        const [header, ...tasks] = lines;
-        const weekHeaderMatch = header.match(/(Week\s+\d+):\s+(.*)/);
-        if (weekHeaderMatch) {
-          weekInfo.week = weekHeaderMatch[1];
-          weekInfo.dateRange = weekHeaderMatch[2];
-        }
+      // Fetch from your Flask backend
+      // Adjust the port (5000 / 5001) to match your Flask app
+      // e.g., "http://127.0.0.1:5001/api/analyze"
+      const response = await fetch("http://127.0.0.1:5001/api/analyze", {
+        method: "POST",
+        body: formData,
+      });
 
-        weekInfo.tasks = tasks;
-        weeklyOutline.push(weekInfo);
-
-        tasks.forEach((task) => {
-          const taskInfo = { task };
-          const dueDateMatch = task.match(/(\w+\s+\d{1,2})/); // Extract date if present
-          if (dueDateMatch) {
-            taskInfo.dueDate = dueDateMatch[1];
-          }
-          toDoList.push(taskInfo);
-        });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => null);
+        throw new Error(errData?.error || "Error analyzing file");
       }
-    });
 
-    return { weeklyOutline, toDoList };
+      const data = await response.json();
+      setAnalysis(data.analysis || "");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="App">
-      <header className="App-header">
-        <h1>Homework/Class Tracker</h1>
-        <p>Start by uploading your syllabus.</p>
-        <SyllabusUploader onFileParse={handleFileParse} />
-        {weeklyOutline.length > 0 && (
-          <div style={{ marginTop: '20px' }}>
-            <h3>Weekly Outline:</h3>
-            {weeklyOutline.map((week, index) => (
-              <div key={index}>
-                <h4>{week.week} ({week.dateRange})</h4>
-                <ul>
-                  {week.tasks.map((task, idx) => (
-                    <li key={idx}>{task}</li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        )}
-        {toDoList.length > 0 && (
-          <div style={{ marginTop: '20px' }}>
-            <h3>To-Do List:</h3>
-            <ul>
-              {toDoList.map((item, index) => (
-                <li key={index}>
-                  {item.task} {item.dueDate ? `- Due: ${item.dueDate}` : ''}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </header>
+    <div style={{ maxWidth: '600px', margin: '0 auto', padding: '1rem' }}>
+      <h1>Assignment Analyzer</h1>
+      <p>Upload a document (PDF or DOCX) and get AI-powered analysis of assignments!</p>
+
+      {/* File Input */}
+      <input
+        type="file"
+        onChange={handleFileChange}
+        accept=".pdf,.doc,.docx"
+      />
+
+      {/* Analyze Button */}
+      <div style={{ marginTop: '1rem' }}>
+        <button onClick={handleAnalyze} disabled={!selectedFile || loading}>
+          {loading ? "Analyzing..." : "Generate Assignment List"}
+        </button>
+      </div>
+
+      {/* Error Message */}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+
+      {/* Analysis Result */}
+      {analysis && (
+        <div style={{ marginTop: '1rem' }}>
+          <h2>Analysis</h2>
+          <pre>{analysis}</pre>
+        </div>
+      )}
     </div>
   );
 }
